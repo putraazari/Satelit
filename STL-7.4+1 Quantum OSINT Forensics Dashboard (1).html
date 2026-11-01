@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>STL-7.4+1 | QUANTUM OSINT FORENSICS</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#040810;--b2:#080f1c;--b3:#0c1525;
+--grn:#00FF41;--cy:#00CFFF;--rd:#FF3333;
+--am:#FFB300;--pu:#8B5CF6;--pk:#FF006E;
+--bd:rgba(0,255,65,.14);--bc:rgba(0,207,255,.18);
+padding-top:env(safe-area-inset-top,0px);
+padding-bottom:env(safe-area-inset-bottom,0px)
+}
+html{font-family:'Share Tech Mono',monospace;background:var(--bg);color:var(--grn);overflow-x:hidden}
+body{min-height:100vh;position:relative}
+canvas{display:block}
+
+/* ── MATRIX BG ── */
+#mx{position:fixed;inset:0;z-index:-1;opacity:.04;pointer-events:none}
+
+/* ── HEADER ── */
+#hdr{position:sticky;top:0;z-index:100;height:46px;background:rgba(4,8,16,.96);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;padding:0 14px;backdrop-filter:blur(10px)}
+.logo{font-family:'Orbitron',monospace;font-size:.78rem;font-weight:900;color:var(--cy);letter-spacing:.2em}
+.hstats{display:flex;gap:16px;font-size:.55rem;color:rgba(0,255,65,.55)}
+.hs{display:flex;align-items:center;gap:4px}
+.dp{width:5px;height:5px;border-radius:50%;animation:dp .9s ease-in-out infinite alternate}
+.dg{background:var(--grn)} .dc{background:var(--cy)} .dr{background:var(--rd)} .da{background:var(--am)}
+@keyframes dp{from{opacity:.3}to{opacity:1;box-shadow:0 0 5px currentColor}}
+
+/* ── SCAN BAR ── */
+#sb{height:1px;background:linear-gradient(90deg,transparent,var(--cy) 20%,var(--grn) 80%,transparent);animation:sb 2.5s linear infinite}
+@keyframes sb{0%{transform:scaleX(0) translateX(-50%)}100%{transform:scaleX(1) translateX(0)}}
+
+/* ── GRID ── */
+#grid{display:grid;grid-template-areas:"sat map map""sat osint cctv""mal meta burp""bio qua qua";grid-template-columns:repeat(3,1fr);gap:1px;background:var(--bd)}
+@media(max-width:900px){#grid{grid-template-areas:"sat""map""cctv""osint""mal""meta""burp""qua""bio";grid-template-columns:1fr}}
+[style*="sat"],[data-a="sat"]{grid-area:sat}[data-a="map"]{grid-area:map}[data-a="cctv"]{grid-area:cctv}[data-a="osint"]{grid-area:osint}[data-a="mal"]{grid-area:mal}[data-a="meta"]{grid-area:meta}[data-a="burp"]{grid-area:burp}[data-a="qua"]{grid-area:qua}[data-a="bio"]{grid-area:bio}
+
+/* ── PANEL ── */
+.pn{background:var(--bg);position:relative;overflow:hidden;min-height:240px}
+.pn::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(0,207,255,.03) 0%,transparent 70%);pointer-events:none}
+.ph{background:var(--b2);border-bottom:1px solid var(--bd);padding:5px 12px;display:flex;align-items:center;justify-content:space-between;height:30px}
+.pt{font-size:.58rem;color:var(--cy);letter-spacing:.15em;font-weight:700}
+.pb{padding:8px;height:calc(100% - 30px);overflow:hidden;position:relative}
+.scroll{overflow-y:auto;max-height:100%}
+.scroll::-webkit-scrollbar{width:2px}
+.scroll::-webkit-scrollbar-thumb{background:var(--bd)}
+
+/* corner brackets */
+.cn{position:absolute;width:10px;height:10px;border-color:rgba(0,207,255,.4);border-style:solid;z-index:2}
+.cn.tl{top:30px;left:0;border-width:1px 0 0 1px}.cn.tr{top:30px;right:0;border-width:1px 1px 0 0}
+.cn.bl{bottom:0;left:0;border-width:0 0 1px 1px}.cn.br{bottom:0;right:0;border-width:0 1px 1px 0}
+
+/* scan line */
+.sl{position:absolute;left:0;right:0;height:1px;background:rgba(0,255,65,.35);animation:slv 3.5s linear infinite;pointer-events:none;z-index:5}
+@keyframes slv{0%{top:30px}100%{top:100%}}
+
+/* tags */
+.tg{display:inline-block;padding:1px 7px;border-radius:2px;font-size:.5rem;letter-spacing:.12em}
+.tg-g{background:rgba(0,255,65,.1);border:1px solid rgba(0,255,65,.28);color:var(--grn)}
+.tg-c{background:rgba(0,207,255,.08);border:1px solid var(--bc);color:var(--cy)}
+.tg-r{background:rgba(255,51,51,.1);border:1px solid rgba(255,51,51,.3);color:var(--rd)}
+.tg-a{background:rgba(255,179,0,.1);border:1px solid rgba(255,179,0,.3);color:var(--am)}
+.tg-p{background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);color:var(--pu)}
+
+/* data rows */
+.dr{display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid rgba(0,255,65,.05);font-size:.58rem}
+.dk{color:rgba(0,207,255,.6);letter-spacing:.06em}
+.dv{color:var(--grn)}.dv.r{color:var(--rd)}.dv.a{color:var(--am)}.dv.c{color:var(--cy)}.dv.p{color:var(--pu)}
+
+/* inputs */
+.fi{background:rgba(0,255,65,.04);border:1px solid var(--bd);color:var(--grn);font-family:'Share Tech Mono',monospace;font-size:.62rem;padding:5px 9px;width:100%;outline:none;border-radius:2px;margin-bottom:4px}
+.fi:focus{border-color:var(--cy);box-shadow:0 0 6px rgba(0,207,255,.12)}
+.fb{background:rgba(0,207,255,.08);border:1px solid var(--bc);color:var(--cy);font-family:'Share Tech Mono',monospace;font-size:.58rem;padding:5px 12px;cursor:pointer;letter-spacing:.12em;border-radius:2px;width:100%}
+.fb:hover{background:rgba(0,207,255,.18)}
+
+/* canvas fill */
+.cf{width:100%;height:auto}
+
+/* progress */
+.pr{background:rgba(0,255,65,.06);border:1px solid var(--bd);border-radius:2px;height:6px;overflow:hidden;margin:3px 0}
+.pf{height:100%;border-radius:2px;transition:width .4s}
+.pg{background:linear-gradient(90deg,#00FF4180,var(--grn))}
+.pc{background:linear-gradient(90deg,#00CFFF80,var(--cy))}
+
+/* blink */
+@keyframes bk{50%{opacity:0}}
+.bk{animation:bk 1s step-end infinite}
+
+/* footer */
+#ftr{background:rgba(4,8,16,.96);border-top:1px solid var(--bd);padding:4px 14px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;font-size:.52rem;color:rgba(0,255,65,.38);letter-spacing:.1em}
+</style>
+</head>
+<body>
+<canvas id="mx"></canvas>
+
+<!-- ═══ HEADER ═══ -->
+<div id="hdr">
+  <div class="logo">▶ STL·7·4+1 — QUANTUM OSINT FORENSICS v2.6</div>
+  <div class="hstats">
+    <div class="hs"><div class="dp dc"></div>SAT:<span id="sct" style="color:var(--cy)">12</span></div>
+    <div class="hs"><div class="dp dg"></div>ISP·QUANTUM:ON</div>
+    <div class="hs"><div class="dp da"></div>SCAN:<span id="scp">0.0</span>%</div>
+    <div class="hs"><div class="dp dr"></div>ALERT:3</div>
+    <div class="hs" id="clk" style="color:rgba(0,207,255,.7)">00:00:00 UTC</div>
+  </div>
+</div>
+<div id="sb"></div>
+
+<!-- ═══ GRID ═══ -->
+<div id="grid">
+
+<!-- 1 ── SATELLITE TRACKER -->
+<div class="pn" data-a="sat">
+  <div class="cn tl"></div><div class="cn tr"></div><div class="cn bl"></div><div class="cn br"></div>
+  <div class="ph"><span class="pt">⬡ STARLINK 7·4+1 TRACKER</span><span class="tg tg-g">● LIVE</span></div>
+  <div class="pb scroll">
+    <canvas id="sc" class="cf" width="340" height="240"></canvas>
+    <div style="margin-top:6px;font-size:.56rem">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:rgba(0,207,255,.5);letter-spacing:.12em">SATELIT AKTIF</span>
+        <span class="tg tg-c">STARLINK-2 UPGRADE</span>
+      </div>
+      <div class="pr"><div class="pf pc" id="sp1" style="width:78%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:.52rem;color:rgba(0,255,65,.4);margin-bottom:6px">
+        <span>CLUSTER-7: 550km</span><span>CLUSTER-4: 570km</span><span>+1: 590km</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:.55rem">
+        <thead><tr><td style="color:rgba(0,207,255,.5);padding:2px 4px;border-bottom:1px solid var(--bd)">ID</td><td style="color:rgba(0,207,255,.5);padding:2px 4px;border-bottom:1px solid var(--bd)">ALT</td><td style="color:rgba(0,207,255,.5);padding:2px 4px;border-bottom:1px solid var(--bd)">STATUS</td></tr></thead>
+        <tbody id="stb"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 2 ── WORLD MAP (Google Center) -->
+<div class="pn" data-a="map">
+  <div class="ph"><span class="pt">◉ GOOGLE CENTER — MAPS HORIZONTAL / VARIABEL STARLINK</span><span class="tg tg-c">SATELLITE VIEW</span></div>
+  <div class="pb" style="padding:4px">
+    <canvas id="mc" class="cf" width="720" height="230"></canvas>
+    <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;align-items:center">
+      <span class="tg tg-c">🛰 STL-7: AKTIF</span>
+      <span class="tg tg-p">🛰 STL-4: AKTIF</span>
+      <span class="tg tg-a">🛰 STL+1: AKTIF</span>
+      <span style="margin-left:auto;font-size:.52rem;color:var(--am)" id="clive">LAT: -- | LON: --</span>
+    </div>
+  </div>
+</div>
+
+<!-- 3 ── CCTV -->
+<div class="pn" data-a="cctv">
+  <div class="sl"></div>
+  <div class="ph"><span class="pt">📷 CCTV CAM-01 / INDOOR</span><span class="tg tg-r bk">● REC</span></div>
+  <div class="pb" style="padding:4px;background:#000">
+    <canvas id="cc" class="cf" width="360" height="190"></canvas>
+    <div style="font-size:.52rem;color:rgba(0,255,65,.45);margin-top:3px;display:flex;justify-content:space-between">
+      <span>CAM-01 | NORTH-INDOOR | 1080P</span><span id="cvt"></span>
+    </div>
+    <div class="dr"><span class="dk">MOTION</span><span class="dv r">TERDETEKSI ⚠</span></div>
+    <div class="dr"><span class="dk">KECERAHAN</span><span class="dv">NV MODE ON</span></div>
+    <div class="dr"><span class="dk">FPS</span><span class="dv c">30 FPS · 4K</span></div>
+  </div>
+</div>
+
+<!-- 4 ── OSINT LOOKUP -->
+<div class="pn" data-a="osint">
+  <div class="ph"><span class="pt">🔍 OSINT / LOOKUP ANALISIS</span><span class="tg tg-a">MULTI-VECTOR</span></div>
+  <div class="pb scroll">
+    <select class="fi" id="lt" style="background:var(--b2);margin-bottom:4px">
+      <option>IP ADDRESS</option><option>DOMAIN</option><option>EMAIL</option><option>PHONE</option><option>USERNAME</option>
+    </select>
+    <input class="fi" id="lv" placeholder="Masukkan target...">
+    <button class="fb" onclick="runLookup()">▶ EXECUTE LOOKUP</button>
+    <div id="lr" style="font-size:.58rem;margin-top:6px"></div>
+  </div>
+</div>
+
+<!-- 5 ── MALTEGO -->
+<div class="pn" data-a="mal">
+  <div class="ph"><span class="pt">◈ MALTEGO / FORENSIK OSINT GRAPH</span><span class="tg tg-c">ENTITY MAP</span></div>
+  <div class="pb" style="padding:4px">
+    <canvas id="mgc" class="cf" width="360" height="210"></canvas>
+    <div style="display:flex;gap:8px;font-size:.5rem;margin-top:3px;flex-wrap:wrap">
+      <span style="color:var(--rd)">◉ TARGET</span><span style="color:var(--cy)">◉ IP</span>
+      <span style="color:var(--grn)">◉ DOMAIN</span><span style="color:var(--am)">◉ EMAIL</span>
+      <span style="color:var(--pu)">◉ PERSON</span>
+    </div>
+  </div>
+</div>
+
+<!-- 6 ── METADATA ANALYSIS -->
+<div class="pn" data-a="meta">
+  <div class="ph"><span class="pt">📂 METADATA / ANALISIS DATA</span><span class="tg tg-a">FORENSIK</span></div>
+  <div class="pb scroll">
+    <div id="mdr" onclick="runMeta()" style="border:1px dashed var(--bc);padding:8px;text-align:center;cursor:pointer;color:var(--cy);font-size:.6rem;margin-bottom:6px;border-radius:2px">📂 KLIK UNTUK ANALISIS FILE</div>
+    <div id="mres"></div>
+  </div>
+</div>
+
+<!-- 7 ── BURP SUITE -->
+<div class="pn" data-a="burp">
+  <div class="ph"><span class="pt">⚡ BURPSUITE INTERCEPTOR</span><span class="tg tg-r">AKTIF</span></div>
+  <div class="pb scroll">
+    <div style="font-size:.54rem;color:rgba(255,51,51,.6);margin-bottom:4px;letter-spacing:.1em">── REQUEST INTERCEPTED ──</div>
+    <div id="breq" style="font-size:.55rem;line-height:1.75;color:rgba(0,255,65,.8);background:rgba(0,0,0,.4);padding:6px;border-left:2px solid var(--rd);margin-bottom:6px;max-height:110px;overflow-y:auto;white-space:pre;border-radius:0 2px 2px 0"></div>
+    <div style="font-size:.54rem;color:rgba(255,179,0,.65);margin-bottom:4px;letter-spacing:.1em">── VULNERABILITY SCANNER ──</div>
+    <div id="bvul"></div>
+  </div>
+</div>
+
+<!-- 8 ── QUANTUM ALGORITHM B -->
+<div class="pn" data-a="qua">
+  <div class="ph"><span class="pt">⚛ FISIKA KUANTUM — ALGORITMA B / GROVER SCAN</span><span class="tg tg-p">QUANTUM ISP</span></div>
+  <div class="pb" style="padding:4px">
+    <canvas id="qc" class="cf" width="720" height="180"></canvas>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px;font-size:.52rem">
+      <div style="text-align:center;border:1px solid rgba(0,207,255,.2);padding:4px;background:rgba(0,207,255,.04)">
+        <div style="color:var(--cy);font-size:.75rem;font-weight:700">47</div><div style="color:#666;margin-top:1px">QUBIT</div></div>
+      <div style="text-align:center;border:1px solid rgba(139,92,246,.2);padding:4px;background:rgba(139,92,246,.04)">
+        <div style="color:var(--pu);font-size:.75rem;font-weight:700">7×4</div><div style="color:#666;margin-top:1px">ENTANGLE</div></div>
+      <div style="text-align:center;border:1px solid rgba(255,179,0,.2);padding:4px;background:rgba(255,179,0,.04)">
+        <div style="color:var(--am);font-size:.75rem;font-weight:700">0.7GHz</div><div style="color:#666;margin-top:1px">LAMBAT SCAN</div></div>
+      <div style="text-align:center;border:1px solid rgba(0,255,65,.2);padding:4px;background:rgba(0,255,65,.04)">
+        <div style="color:var(--grn);font-size:.75rem;font-weight:700">Q-256</div><div style="color:#666;margin-top:1px">ENKRIPSI</div></div>
+      <div style="text-align:center;border:1px solid rgba(255,51,51,.2);padding:4px;background:rgba(255,51,51,.04)">
+        <div style="color:var(--rd);font-size:.75rem;font-weight:700">0.004%</div><div style="color:#666;margin-top:1px">ERROR</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 9 ── BIODATA MACHINE -->
+<div class="pn" data-a="bio">
+  <div class="ph"><span class="pt">👤 BIODATA MACHINE / PROFILING</span><span class="tg tg-a">PROGRAM</span></div>
+  <div class="pb scroll">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <div style="width:44px;height:44px;border:1px solid var(--bc);background:rgba(0,207,255,.05);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">👤</div>
+      <div>
+        <div style="font-size:.6rem;color:var(--cy)">TARGET PROFILE</div>
+        <div style="font-size:.65rem;color:var(--grn)" id="bioname">UNKNOWN SUBJECT</div>
+        <span class="tg tg-r" style="margin-top:2px">HIGH RISK</span>
+      </div>
+    </div>
+    <div id="bdata" style="font-size:.57rem"></div>
+    <button class="fb" onclick="genBio()" style="margin-top:6px">🔄 GENERATE PROFILE</button>
+  </div>
+</div>
+
+</div><!-- end grid -->
+
+<!-- FOOTER -->
+<div id="ftr">
+  <span>STL·7·4+1 QUANTUM FORENSICS SYSTEM v2.6.1 — STARLINK-2 UPGRADE © 2026</span>
+  <span>SLOW SCAN: <span id="ssb">████░░░░░░</span></span>
+  <span>ISP QUANTUM: ONLINE | ALGORITMA-B: GROVER | ENTANGLEMENT: √28</span>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// MATRIX BACKGROUND
+// ══════════════════════════════════════════
+(function(){
+  const c=document.getElementById('mx'),x=c.getContext('2d');
+  let W=c.width=window.innerWidth,H=c.height=window.innerHeight;
+  const cols=Math.floor(W/14),drops=Array(cols).fill(1);
+  setInterval(()=>{
+    x.fillStyle='rgba(4,8,16,.06)';x.fillRect(0,0,W,H);
+    x.fillStyle='#00FF41';x.font='12px monospace';
+    drops.forEach((y,i)=>{
+      x.fillText(String.fromCharCode(0x30A0+Math.random()*96),i*14,y*14);
+      if(y*14>H&&Math.random()>.978)drops[i]=0;
+      drops[i]++;
+    });
+  },70);
+  window.addEventListener('resize',()=>{W=c.width=window.innerWidth;H=c.height=window.innerHeight;});
+})();
+
+// ══════════════════════════════════════════
+// CLOCK + SCAN PROGRESS
+// ══════════════════════════════════════════
+let scanP=0;
+function updateUI(){
+  const n=new Date();
+  document.getElementById('clk').textContent=n.toUTCString().slice(17,25)+' UTC';
+  document.getElementById('cvt').textContent=n.toTimeString().slice(0,8);
+  scanP=(scanP+.25)%100;
+  document.getElementById('scp').textContent=scanP.toFixed(1);
+  const b=Math.floor(scanP/10);
+  document.getElementById('ssb').textContent='█'.repeat(b)+'░'.repeat(10-b);
+}
+setInterval(updateUI,350);updateUI();
+
+// ══════════════════════════════════════════
+// 1. SATELLITE TRACKER
+// ══════════════════════════════════════════
+(function(){
+  const c=document.getElementById('sc'),x=c.getContext('2d');
+  const CX=170,CY=120;
+  const sats=[
+    {id:'STL-7A',a:0,r:68,sp:.02,col:'#00CFFF'},
+    {id:'STL-7B',a:2.09,r:68,sp:.02,col:'#00CFFF'},
+    {id:'STL-7C',a:4.19,r:68,sp:.02,col:'#00CFFF'},
+    {id:'STL-7D',a:1.05,r:68,sp:.02,col:'#00CFFF'},
+    {id:'STL-4A',a:.5,r:53,sp:.026,col:'#8B5CF6'},
+    {id:'STL-4B',a:2.6,r:53,sp:.026,col:'#8B5CF6'},
+    {id:'STL-4C',a:4.7,r:53,sp:.026,col:'#8B5CF6'},
+    {id:'STL-4D',a:1.6,r:53,sp:.026,col:'#8B5CF6'},
+    {id:'STL+1',a:1.2,r:38,sp:.033,col:'#FFB300'},
+    {id:'STL-ISP-A',a:.8,r:86,sp:.013,col:'#00FF41'},
+    {id:'STL-ISP-B',a:3.5,r:86,sp:.013,col:'#00FF41'},
+    {id:'STL-DEEP',a:2.2,r:100,sp:.008,col:'#FF3333'},
+  ];
+  document.getElementById('sct').textContent=sats.length;
+  const tb=document.getElementById('stb');
+  sats.forEach(s=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="color:${s.col};padding:2px 4px">${s.id}</td><td style="color:#666;padding:2px 4px">${Math.floor(s.r*8+420)}km</td><td style="padding:2px 4px"><span class="tg tg-g">AKTIF</span></td>`;
+    tb.appendChild(tr);
+  });
+
+  function draw(){
+    x.clearRect(0,0,340,240);
+    // Stars bg
+    if(!draw._stars){draw._stars=[];for(let i=0;i<80;i++)draw._stars.push({x:Math.random()*340,y:Math.random()*240,r:Math.random()*.8+.2,ph:Math.random()*Math.PI*2});}
+    draw._stars.forEach(s=>{s.ph+=.02;x.globalAlpha=.3+.7*Math.abs(Math.sin(s.ph));x.fillStyle='#fff';x.beginPath();x.arc(s.x,s.y,s.r,0,Math.PI*2);x.fill();});
+    x.globalAlpha=1;
+    // Earth glow
+    let eg=x.createRadialGradient(CX,CY,0,CX,CY,28);
+    eg.addColorStop(0,'#1a3a6a');eg.addColorStop(.7,'#0d2040');eg.addColorStop(1,'#040c1c');
+    x.fillStyle=eg;x.beginPath();x.arc(CX,CY,28,0,Math.PI*2);x.fill();
+    x.fillStyle='rgba(0,207,255,.06)';x.beginPath();x.arc(CX,CY,32,0,Math.PI*2);x.fill();
+    // Continents hint
+    x.fillStyle='rgba(0,100,30,.6)';
+    x.beginPath();x.ellipse(CX-6,CY-2,9,5,0,0,Math.PI*2);x.fill();
+    x.beginPath();x.ellipse(CX+8,CY+4,7,4,.3,0,Math.PI*2);x.fill();
+    x.strokeStyle='rgba(0,207,255,.25)';x.lineWidth=.8;x.beginPath();x.arc(CX,CY,28,0,Math.PI*2);x.stroke();
+    // Atmosphere
+    x.strokeStyle='rgba(0,150,255,.12)';x.lineWidth=3;x.beginPath();x.arc(CX,CY,31,0,Math.PI*2);x.stroke();
+    // Orbit rings
+    [38,53,68,86,100].forEach(r=>{
+      x.strokeStyle='rgba(0,255,65,.06)';x.lineWidth=.8;x.setLineDash([2,5]);
+      x.beginPath();x.arc(CX,CY,r,0,Math.PI*2);x.stroke();
+    });
+    x.setLineDash([]);
+    // Sats
+    sats.forEach(s=>{
+      s.a+=s.sp*.016*3;
+      const sx=CX+Math.cos(s.a)*s.r,sy=CY+Math.sin(s.a)*s.r;
+      for(let i=8;i>0;i--){
+        const ta=s.a-i*.1,tx=CX+Math.cos(ta)*s.r,ty=CY+Math.sin(ta)*s.r;
+        x.globalAlpha=i/8*.25;x.fillStyle=s.col;x.beginPath();x.arc(tx,ty,i/8*2,0,Math.PI*2);x.fill();
+      }
+      x.globalAlpha=1;
+      const sg=x.createRadialGradient(sx,sy,0,sx,sy,5);
+      sg.addColorStop(0,s.col);sg.addColorStop(1,'transparent');
+      x.fillStyle=sg;x.beginPath();x.arc(sx,sy,5,0,Math.PI*2);x.fill();
+      x.fillStyle='#fff';x.beginPath();x.arc(sx,sy,1.2,0,Math.PI*2);x.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ══════════════════════════════════════════
+// 2. WORLD MAP (Google Center)
+// ══════════════════════════════════════════
+(function(){
+  const c=document.getElementById('mc'),x=c.getContext('2d');
+  const W=720,H=230;
+
+  function drawMap(t){
+    x.fillStyle='#020610';x.fillRect(0,0,W,H);
+    // Grid
+    x.strokeStyle='rgba(0,207,255,.06)';x.lineWidth=.5;
+    for(let gx=0;gx<=W;gx+=W/18){x.beginPath();x.moveTo(gx,0);x.lineTo(gx,H);x.stroke();}
+    for(let gy=0;gy<=H;gy+=H/6){x.beginPath();x.moveTo(0,gy);x.lineTo(W,gy);x.stroke();}
+    // Lat/lon labels
+    x.fillStyle='rgba(0,207,255,.22)';x.font='7px Share Tech Mono';
+    ['90°N','60°N','30°N','EQ','30°S','60°S','90°S'].forEach((l,i)=>x.fillText(l,2,i*H/6+9));
+    ['-180°','-120°','-60°','0°','60°','120°','180°'].forEach((l,i)=>x.fillText(l,i*W/6,H-2));
+    // Continents
+    x.fillStyle='rgba(0,180,60,.14)';x.strokeStyle='rgba(0,255,65,.22)';x.lineWidth=.7;
+    const cti=[
+      // N.America
+      [[W*.06,H*.12],[W*.22,H*.08],[W*.3,H*.18],[W*.22,H*.48],[W*.12,H*.52],[W*.06,H*.38]],
+      // S.America
+      [[W*.18,H*.52],[W*.28,H*.48],[W*.26,H*.82],[W*.16,H*.84]],
+      // Europe
+      [[W*.44,H*.1],[W*.54,H*.08],[W*.56,H*.28],[W*.48,H*.32],[W*.43,H*.2]],
+      // Africa
+      [[W*.44,H*.3],[W*.56,H*.28],[W*.58,H*.64],[W*.5,H*.74],[W*.44,H*.62]],
+      // Asia
+      [[W*.55,H*.06],[W*.9,H*.08],[W*.92,H*.38],[W*.76,H*.48],[W*.62,H*.42],[W*.56,H*.2]],
+      // Australia
+      [[W*.76,H*.58],[W*.92,H*.54],[W*.93,H*.74],[W*.78,H*.76]],
+      // Greenland
+      [[W*.26,H*.04],[W*.34,H*.02],[W*.36,H*.14],[W*.28,H*.18]],
+    ];
+    cti.forEach(poly=>{
+      x.beginPath();poly.forEach(([px,py],i)=>i?x.lineTo(px,py):x.moveTo(px,py));
+      x.closePath();x.fill();x.stroke();
+    });
+    // Satellite ground tracks + positions
+    const satPos=[
+      {lon:t*.015,lat:.38,col:'#00CFFF',id:'STL-7'},
+      {lon:t*.019+1.8,lat:.44,col:'#8B5CF6',id:'STL-4'},
+      {lon:t*.012+3.5,lat:.55,col:'#FFB300',id:'STL+1'},
+    ];
+    satPos.forEach(s=>{
+      const lon=((s.lon%(Math.PI*2))/(Math.PI*2));
+      const sx=lon*W,sy=s.lat*H;
+      // Ground track
+      x.strokeStyle=s.col+'30';x.lineWidth=1;x.setLineDash([2,5]);
+      x.beginPath();x.moveTo((lon-.04)*W,sy);x.lineTo((lon+.04)*W,sy);x.stroke();
+      x.setLineDash([]);
+      // Coverage circle
+      x.strokeStyle=s.col+'20';x.lineWidth=1;
+      x.beginPath();x.ellipse(sx,sy,45,22,0,0,Math.PI*2);x.stroke();
+      // Sat marker
+      const sg=x.createRadialGradient(sx,sy,0,sx,sy,12);
+      sg.addColorStop(0,s.col+'bb');sg.addColorStop(1,'transparent');
+      x.fillStyle=sg;x.beginPath();x.arc(sx,sy,12,0,Math.PI*2);x.fill();
+      x.fillStyle=s.col;x.beginPath();x.arc(sx,sy,3.5,0,Math.PI*2);x.fill();
+      x.fillStyle='rgba(255,255,255,.9)';x.font='7px Share Tech Mono';x.fillText(s.id,sx+6,sy-5);
+      const latD=((s.lat-.5)*180).toFixed(1),lonD=((lon-.5)*360).toFixed(1);
+      document.getElementById('clive').textContent=`LAT:${latD}° LON:${lonD}°`;
+    });
+    // City markers
+    [{n:'Jakarta',lx:.77,ly:.59},{n:'London',lx:.48,ly:.22},{n:'NY',lx:.15,ly:.33},{n:'Tokyo',lx:.87,ly:.3},{n:'Sydney',lx:.87,ly:.7}].forEach(ci=>{
+      x.fillStyle='rgba(255,179,0,.8)';x.beginPath();x.arc(ci.lx*W,ci.ly*H,2.5,0,Math.PI*2);x.fill();
+      x.fillStyle='rgba(255,179,0,.55)';x.font='7px Share Tech Mono';x.fillText(ci.n,ci.lx*W+4,ci.ly*H-3);
+    });
+  }
+  let mt=0;function mloop(){mt+=.016;drawMap(mt);requestAnimationFrame(mloop);}
+  mloop();
+})();
+
+// ══════════════════════════════════════════
+// 3. CCTV
+// ══════════════════════════════════════════
+(function(){
+  const c=document.getElementById('cc'),x=c.getContext('2d');
+  let fr=0;
+  function draw(){
+    x.fillStyle='rgb(6,12,6)';x.fillRect(0,0,360,190);
+    // Grid floor
+    x.strokeStyle='rgba(0,255,65,.05)';x.lineWidth=.5;
+    for(let i=0;i<360;i+=22){{x.beginPath();x.moveTo(i,0);x.lineTo(i,190);x.stroke();}}
+    for(let i=0;i<190;i+=22){{x.beginPath();x.moveTo(0,i);x.lineTo(360,i);x.stroke();}}
+    // Room walls
+    x.strokeStyle='rgba(0,255,65,.13)';x.lineWidth=1;
+    x.strokeRect(30,40,300,130);
+    x.strokeRect(140,110,80,60); // door
+    x.strokeRect(240,55,70,50); // window
+    x.strokeRect(40,55,60,40); // shelf
+    // Moving figure
+    const fx=180+Math.sin(fr*.018)*120;
+    x.fillStyle='rgba(0,255,65,.22)';
+    x.beginPath();x.ellipse(fx,138,9,22,0,0,Math.PI*2);x.fill();
+    x.beginPath();x.arc(fx,108,10,0,Math.PI*2);x.fill();
+    // Noise
+    x.fillStyle='rgba(0,255,65,.08)';
+    for(let i=0;i<400;i++)x.fillRect(Math.random()*360,Math.random()*190,1,1);
+    // Scan lines
+    x.fillStyle='rgba(0,0,0,.2)';
+    for(let i=0;i<190;i+=3)x.fillRect(0,i,360,1);
+    // Vignette
+    const vg=x.createRadialGradient(180,95,60,180,95,190);
+    vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,.6)');
+    x.fillStyle=vg;x.fillRect(0,0,360,190);
+    // Timestamp
+    x.fillStyle='rgba(0,255,65,.65)';x.font='8px Share Tech Mono';
+    const n=new Date();
+    x.fillText(n.toLocaleDateString('id-ID')+' '+n.toTimeString().slice(0,8),6,182);
+    x.fillText('CAM01 | NV | 1080P@30FPS',6,172);
+    // Motion box
+    x.strokeStyle='rgba(255,51,51,.5)';x.lineWidth=1.5;x.setLineDash([3,3]);
+    x.strokeRect(fx-22,88,44,65);
+    x.setLineDash([]);
+    x.fillStyle='rgba(255,51,51,.7)';x.font='7px monospace';x.fillText('MOTION',fx-17,85);
+    fr++;requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ══════════════════════════════════════════
+// 4. OSINT LOOKUP
+// ══════════════════════════════════════════
+function runLookup(){
+  const tp=document.getElementById('lt').value;
+  const vl=document.getElementById('lv').value||'192.168.7.4';
+  const el=document.getElementById('lr');
+  el.innerHTML='<div style="color:var(--am)">▶ EXECUTING '+tp+' LOOKUP...<span class="bk">_</span></div>';
+  const D={
+    'IP ADDRESS':{IP:vl,'ASN':'AS45574 STARLINK-2','ORG':'SpaceX / Starlink ISP','COUNTRY':'Indonesia (ID)','KOTA':'Jakarta','COORDINATES':'-6.2°S / 106.8°E','ISP':'Starlink Quantum ISP','TYPE':'RESIDENTIAL','PROXY':'TIDAK','VPN':'TIDAK','TOR':'TIDAK','OPEN PORTS':'80,443,8080,22','OS DETECT':'Linux 5.15 (Ubuntu)','RISK SCORE':'12/100 LOW','BLACKLIST':'TIDAK ADA','ABUSE':'0 LAPORAN'},
+    'DOMAIN':{DOMAIN:vl,'REGISTRAR':'GoDaddy LLC','DIBUAT':'2020-01-15','EXPIRED':'2027-01-15','IP':'104.21.45.67','NS':'ns1.starlink.net','SSL':'VALID - Let\'s Encrypt','SERVER':'NGINX 1.24','CMS':'WordPress 6.4','PHP':'8.1.12','ALEXA':'#4,521,033','EMAIL FOUND':'admin@'+vl,'SUBDOMAINS':'dev, api, mail, cdn','TECH STACK':'React, Node.js, MySQL'},
+    'EMAIL':{'EMAIL':vl,'VALID':'YA','MX RECORD':'VALID','BREACHES':'3 DITEMUKAN','BREACH-1':'LinkedIn 2021 (password, name)','BREACH-2':'Adobe 2013 (hash, email)','BREACH-3':'Collection#1 2019','SOCIAL FOUND':'LinkedIn, Twitter, GitHub','FIRST SEEN':'2018-03-22','RISK':'SEDANG 45/100'},
+    'PHONE':{'NOMOR':vl,'COUNTRY':'Indonesia (+62)','OPERATOR':'Telkomsel','TYPE':'Mobile GSM','VALID':'YA','WHATSAPP':'AKTIF ✓','TELEGRAM':'KEMUNGKINAN','SPAM SCORE':'2/10','LAPORAN':'0','REGION':'Jawa Barat'},
+    'USERNAME':{'USERNAME':vl,'TWITTER':'DITEMUKAN ✓','INSTAGRAM':'DITEMUKAN ✓','GITHUB':'DITEMUKAN ✓','TIKTOK':'DITEMUKAN ✓','REDDIT':'DITEMUKAN ✓','FACEBOOK':'TIDAK','LINKEDIN':'KEMUNGKINAN','STEAM':'TIDAK','TOTAL FOUND':'7/15 PLATFORM','RISK':'LOW'},
+  };
+  setTimeout(()=>{
+    const d=D[tp]||D['IP ADDRESS'];
+    el.innerHTML=Object.entries(d).map(([k,v])=>`<div class="dr"><span class="dk">${k}</span><span class="dv">${v}</span></div>`).join('');
+  },1100);
+}
+
+// ══════════════════════════════════════════
+// 5. MALTEGO GRAPH
+// ══════════════════════════════════════════
+(function(){
+  const c=document.getElementById('mgc'),x=c.getContext('2d');
+  const W=360,H=210;
+  const nodes=[
+    {x:W/2,y:H/2,l:'TARGET',col:'#FF3333',r:14},
+    {x:W*.18,y:H*.28,l:'104.21.45',col:'#00CFFF',r:9},
+    {x:W*.82,y:H*.22,l:'domain.xyz',col:'#00FF41',r:9},
+    {x:W*.12,y:H*.68,l:'email@x',col:'#FFB300',r:9},
+    {x:W*.88,y:H*.72,l:'@user7',col:'#8B5CF6',r:9},
+    {x:W*.5,y:H*.12,l:'AS45574',col:'#00CFFF',r:7},
+    {x:W*.5,y:H*.88,l:'BREACH-DB',col:'#FF3333',r:7},
+    {x:W*.08,y:H*.48,l:'SpaceX',col:'#00FF41',r:7},
+  ];
+  const lk=[[0,1],[0,2],[0,3],[0,4],[1,5],[1,7],[3,6],[2,5],[4,6],[5,0]];
+  let t=0;
+  function draw(){
+    x.clearRect(0,0,W,H);t+=.018;
+    // Background grid
+    x.strokeStyle='rgba(0,255,65,.03)';x.lineWidth=.4;
+    for(let i=0;i<W;i+=30){{x.beginPath();x.moveTo(i,0);x.lineTo(i,H);x.stroke();}}
+    for(let i=0;i<H;i+=30){{x.beginPath();x.moveTo(0,i);x.lineTo(W,i);x.stroke();}}
+    lk.forEach(([a,b])=>{
+      const na=nodes[a],nb=nodes[b];
+      const g=x.createLinearGradient(na.x,na.y,nb.x,nb.y);
+      g.addColorStop(0,na.col+'55');g.addColorStop(1,nb.col+'55');
+      x.strokeStyle=g;x.lineWidth=1;x.setLineDash([3,5]);
+      x.lineDashOffset=-t*12;x.beginPath();x.moveTo(na.x,na.y);x.lineTo(nb.x,nb.y);x.stroke();
+    });
+    x.setLineDash([]);x.lineDashOffset=0;
+    nodes.forEach((n,i)=>{
+      const pl=(Math.sin(t*1.4+i)+1)*.5;
+      x.globalAlpha=.25*(1-pl);x.strokeStyle=n.col;x.lineWidth=1.2;
+      x.beginPath();x.arc(n.x,n.y,n.r+7+pl*8,0,Math.PI*2);x.stroke();
+      x.globalAlpha=1;
+      const ng=x.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
+      ng.addColorStop(0,n.col+'ee');ng.addColorStop(1,n.col+'22');
+      x.fillStyle=ng;x.beginPath();x.arc(n.x,n.y,n.r,0,Math.PI*2);x.fill();
+      x.strokeStyle=n.col;x.lineWidth=1.3;x.beginPath();x.arc(n.x,n.y,n.r,0,Math.PI*2);x.stroke();
+      x.fillStyle='rgba(255,255,255,.88)';x.font='bold 7px Share Tech Mono';x.textAlign='center';
+      x.fillText(n.l,n.x,n.y+n.r+10);
+    });
+    x.textAlign='left';
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ══════════════════════════════════════════
+// 6. METADATA ANALYSIS
+// ══════════════════════════════════════════
+function runMeta(){
+  document.getElementById('mres').innerHTML='<div style="color:var(--am)">▶ MENGANALISIS METADATA...<span class="bk">_</span></div>';
+  setTimeout(()=>{
+    const m={'FILENAME':'mission_data_2026.pdf','SIZE':'2.34 MB','TYPE':'application/pdf','DIBUAT':'2026-01-15 09:23:11','DIUBAH':'2026-10-28 14:05:33','AUTHOR':'Saputra Azari','PRODUCER':'Microsoft Word 365','GPS LAT':'-6.2088° S','GPS LON':'106.8456° E','PERANGKAT':'Samsung S24 Ultra','OS':'Android 14','KAMERA':'200MP f/1.7','EXIF VER':'2.32','COLOR':'sRGB','FLASH':'Tidak','ISO':'100','SHUTTER':'1/120s','MD5':'a3f4b2c1d5e6f7a8','SHA256':'3a7f2bc1...d9e4f5','STEGANO':'TIDAK DITEMUKAN','HIDDEN DATA':'BERSIH ✓','WATERMARK':'TIDAK ADA'};
+    document.getElementById('mres').innerHTML=Object.entries(m).map(([k,v])=>`<div class="dr"><span class="dk">${k}</span><span class="dv ${k==='AUTHOR'?'c':''}">${v}</span></div>`).join('');
+  },800);
+}
+runMeta();
+
+// ══════════════════════════════════════════
+// 7. BURP SUITE
+// ══════════════════════════════════════════
+(function(){
+  const reqs=[
+    'POST /api/v2/auth/login HTTP/1.1\nHost: target-system.id\nContent-Type: application/json\nX-Forwarded-For: 7.4.1.1\n\n{"user":"admin","pass":"[INTERCEPTED]","otp":"1234"}',
+    'GET /admin/panel?id=1 UNION SELECT * FROM users-- HTTP/1.1\nHost: target-system.id\nCookie: session=eyJ0eXAi...\nUser-Agent: Mozilla/5.0 (Kali Linux)\n',
+    'PUT /api/user/7/role HTTP/1.1\nHost: target-system.id\nAuthorization: Bearer JWT.MODIFIED\n\n{"role":"superadmin","bypass":"../../../etc/shadow"}',
+  ];
+  const vulns=[
+    {s:'KRITIS',n:'SQL INJECTION',p:'/search?q='},
+    {s:'KRITIS',n:'AUTH BYPASS',p:'/api/admin/'},
+    {s:'TINGGI',n:'XSS REFLECTED',p:'/comment?text='},
+    {s:'TINGGI',n:'IDOR',p:'/api/users/{id}/data'},
+    {s:'SEDANG',n:'INFO DISCLOSURE',p:'/api/version'},
+    {s:'RENDAH',n:'CSRF TOKEN WEAK',p:'/forms/submit'},
+  ];
+  const cols={KRITIS:'var(--rd)',TINGGI:'var(--am)',SEDANG:'var(--pu)',RENDAH:'var(--grn)'};
+  let ri=0;
+  document.getElementById('breq').textContent=reqs[0];
+  setInterval(()=>{ri=(ri+1)%reqs.length;document.getElementById('breq').textContent=reqs[ri];},3200);
+  document.getElementById('bvul').innerHTML=vulns.map(v=>`<div style="display:flex;gap:6px;padding:2px 0;font-size:.55rem;border-bottom:1px solid rgba(0,255,65,.05)"><span style="color:${cols[v.s]};min-width:50px">${v.s}</span><span style="color:var(--grn)">${v.n}</span><span style="color:rgba(0,207,255,.45);margin-left:auto">${v.p}</span></div>`).join('');
+})();
+
+// ══════════════════════════════════════════
+// 8. QUANTUM ALGORITHM B
+// ══════════════════════════════════════════
+(function(){
+  const c=document.getElementById('qc'),x=c.getContext('2d');
+  const W=720,H=180;
+  const QB=7;
+  const gates=[
+    {q:0,g:1,t:'H',col:'#00CFFF'},{q:3,g:1,t:'H',col:'#00CFFF'},
+    {q:6,g:1,t:'H',col:'#00CFFF'},{q:1,g:2,t:'X',col:'#FF3333'},
+    {q:4,g:2,t:'X',col:'#FF3333'},{q:2,g:3,t:'Rz',col:'#8B5CF6'},
+    {q:5,g:3,t:'Rz',col:'#8B5CF6'},{q:0,g:4,t:'CX',col:'#FFB300',tc:3},
+    {q:1,g:5,t:'CX',col:'#FFB300',tc:5},{q:2,g:6,t:'M',col:'#00FF41'},
+    {q:4,g:6,t:'M',col:'#00FF41'},{q:6,g:6,t:'M',col:'#00FF41'},
+  ];
+  let t=0;
+  function draw(){
+    x.clearRect(0,0,W,H);t+=.02;
+    const lh=H/(QB+1),gw=W/8;
+    // Grid bg
+    x.strokeStyle='rgba(0,255,65,.03)';x.lineWidth=.4;
+    for(let i=0;i<W;i+=gw/2){{x.beginPath();x.moveTo(i,0);x.lineTo(i,H);x.stroke();}}
+    // Qubit wires
+    for(let q=0;q<QB;q++){
+      const y=(q+1)*lh;
+      x.strokeStyle=`rgba(0,207,255,${.15+.08*Math.sin(t*.8+q)})`;
+      x.lineWidth=1;x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke();
+      x.fillStyle='rgba(0,207,255,.55)';x.font='7px Share Tech Mono';
+      x.fillText(`|q${q}⟩`,3,y+3);
+    }
+    // Gates
+    gates.forEach((g,i)=>{
+      const gx=gw*g.g,gy=(g.q+1)*lh;
+      const pl=Math.sin(t*1.8+i)*.5+.5;
+      if(g.t==='CX'&&g.tc!==undefined){
+        const ty=(g.tc+1)*lh;
+        x.strokeStyle=g.col;x.lineWidth=1.5;x.beginPath();x.moveTo(gx,gy);x.lineTo(gx,ty);x.stroke();
+        x.fillStyle=g.col;x.beginPath();x.arc(gx,gy,5,0,Math.PI*2);x.fill();
+        x.strokeStyle=g.col;x.beginPath();x.arc(gx,ty,6,0,Math.PI*2);x.stroke();
+        x.beginPath();x.moveTo(gx-6,ty);x.lineTo(gx+6,ty);x.stroke();
+      } else {
+        x.globalAlpha=.6+pl*.4;
+        x.fillStyle=g.col+'1a';x.strokeStyle=g.col;x.lineWidth=1.3;
+        x.fillRect(gx-9,gy-9,18,18);x.strokeRect(gx-9,gy-9,18,18);
+        x.fillStyle='#fff';x.font='bold 6px Share Tech Mono';x.textAlign='center';
+        x.fillText(g.t,gx,gy+2.5);x.textAlign='left';x.globalAlpha=1;
+      }
+    });
+    // Probability amplitude wave
+    x.strokeStyle='rgba(139,92,246,.45)';x.lineWidth=1.5;x.beginPath();
+    for(let px=0;px<W;px+=2){
+      const amp=16*Math.sin(px/W*Math.PI*6+t)*Math.exp(-px/(W*2))*Math.cos(t*.5);
+      px===0?x.moveTo(px,H*.88+amp):x.lineTo(px,H*.88+amp);
+    }
+    x.stroke();
+    // Bloch sphere hint
+    x.strokeStyle='rgba(0,207,255,.15)';x.lineWidth=1;
+    x.beginPath();x.arc(W-28,20,18,0,Math.PI*2);x.stroke();
+    x.beginPath();x.ellipse(W-28,20,18,6,0,0,Math.PI*2);x.stroke();
+    x.strokeStyle='rgba(0,255,65,.4)';
+    const bx=W-28+Math.sin(t)*14,by=20+Math.cos(t)*14;
+    x.beginPath();x.moveTo(W-28,20);x.lineTo(bx,by);x.stroke();
+    x.fillStyle='var(--grn)';x.beginPath();x.arc(bx,by,2,0,Math.PI*2);x.fill();
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ══════════════════════════════════════════
+// 9. BIODATA MACHINE
+// ══════════════════════════════════════════
+function genBio(){
+  const nm=['Ahmad Rifaldi','Rizki Saputra','Dewi Anggraini','Eko Prastowo','Sari Wulandari'];
+  const ct=['Jakarta Selatan','Surabaya','Bandung','Medan','Makassar'];
+  const jb=['Cybersecurity Analyst','Network Engineer','Data Scientist','DevOps Engineer','Penetration Tester'];
+  const n=nm[Math.floor(Math.random()*nm.length)];
+  const ct2=ct[Math.floor(Math.random()*ct.length)];
+  const j=jb[Math.floor(Math.random()*jb.length)];
+  const risk=Math.floor(Math.random()*100);
+  const rc=risk>70?'r':risk>40?'a':'';
+  document.getElementById('bioname').textContent=n.toUpperCase();
+  const d={
+    'NAMA':n,'KOTA':ct2,'PROFESI':j,
+    'UMUR':(23+Math.floor(Math.random()*28))+'th',
+    'EMAIL':n.toLowerCase().replace(/ /g,'.')+Math.floor(Math.random()*99)+'@gmail.com',
+    'PHONE':'+628'+Math.floor(1e9+Math.random()*8.9e9),
+    'IP TERAKHIR':'103.'+Math.floor(Math.random()*255)+'.'+Math.floor(Math.random()*255)+'.'+Math.floor(Math.random()*255),
+    'BROWSER':'Chrome/120.0 / Firefox 121','OS':'Android 14 / Windows 11',
+    'ISP':'Starlink-2 Quantum ISP','KONEKSI':'5G + Starlink',
+    'BREACH COUNT':(Math.floor(Math.random()*6))+' ditemukan',
+    'SOCIAL':'Instagram ✓ Twitter ✓ GitHub ✓ TikTok ✓',
+    'RISK SCORE':`<span class="dv ${rc}">${risk}/100</span>`,
+    'STATUS':'✓ TERIDENTIFIKASI'
+  };
+  document.getElementById('bdata').innerHTML=Object.entries(d).map(([k,v])=>`<div class="dr"><span class="dk">${k}</span><span class="dv">${v}</span></div>`).join('');
+}
+genBio();
+</script>
+</body>
+</html>
